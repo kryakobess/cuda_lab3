@@ -72,6 +72,7 @@ void generate_bodies(float *masses, float *array_x, float *array_y, float *v_x, 
         array_y[i] = 2.0 * ((float) rand()) / RAND_MAX - 1.0;
         v_x[i] = 2.0 * ((float) rand()) / RAND_MAX - 1.0;
         v_y[i] = 2.0 * ((float) rand()) / RAND_MAX - 1.0;
+        printf("Generating body: i=%d m=%f x=%f y=%f vx=%f vy=%f\n", i, masses[i], array_x[i], array_y[i], v_x[i], v_y[i]);
     }
 }
 
