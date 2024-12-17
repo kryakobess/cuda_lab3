@@ -2,10 +2,14 @@
 #include <stdio.h>
 #include <omp.h>
 #include <math.h>
+#include <string.h>
+
+#define MAX_LINE_LENGTH 1024
 
 #define G 6.67E-11
 
 const int nthreads = 4;
+const char* fileName = "input.csv";
 
 void calculate_force(float *masses, float *array_x, float *array_y, float* fx, float *fy, int n) 
 {
@@ -65,39 +69,74 @@ void update_points(float *fx, float* fy, float *masses, float *array_x, float *a
     }
 }
 
-void generate_bodies(float *masses, float *array_x, float *array_y, float *v_x, float *v_y, int n) {
-    for(int i = 0; i < n; ++i) {
-        masses[i] = ((float) rand()) / (RAND_MAX >> 10); 
-        array_x[i] = 2.0 * ((float) rand()) / RAND_MAX - 1.0;
-        array_y[i] = 2.0 * ((float) rand()) / RAND_MAX - 1.0;
-        v_x[i] = 2.0 * ((float) rand()) / RAND_MAX - 1.0;
-        v_y[i] = 2.0 * ((float) rand()) / RAND_MAX - 1.0;
-        printf("Generating body: i=%d m=%f x=%f y=%f vx=%f vy=%f\n", i, masses[i], array_x[i], array_y[i], v_x[i], v_y[i]);
+
+void parse_csv(const char *filename, int n, float *m, float *x, float *y, float *vx, float *vy) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(EXIT_FAILURE);
     }
+
+    char line[MAX_LINE_LENGTH];
+    int count = 0;
+
+    // Skip the first lines n and header
+    fgets(line, sizeof(line), file);
+    fgets(line, sizeof(line), file);
+
+    while (fgets(line, sizeof(line), file) && count < n) {
+        char *token = strtok(line, ";");
+        if (token != NULL) {
+            m[count] = atof(token);
+            token = strtok(NULL, ";");
+            x[count] = atof(token);
+            token = strtok(NULL, ";");
+            y[count] = atof(token);
+            token = strtok(NULL, ";");
+            vx[count] = atof(token);
+            token = strtok(NULL, ";");
+            vy[count] = atof(token);
+            count++;
+        }
+    }
+
+    fclose(file);
 }
+
 
 int main(int argc, char* argv[]) 
 {
     int n; // кол-во тел
-    float t_end; // максимальный промежуток времени
-    n = atoi(argv[1]);
-    t_end = atof(argv[2]);
-    // scanf("%d %f", &n, &t_end);
+    float t_end = 100.0; // максимальный промежуток времени
     float delta_t = t_end / 100.0;
-    
-    float *masses = malloc(n * sizeof(float));
-    float *array_x = malloc(n * sizeof(float));
-    float *array_y = malloc(n * sizeof(float));
-    float *vs_x = malloc(n * sizeof(float));
-    float *vs_y = malloc(n * sizeof(float));
-    float *fx = calloc(n, sizeof(float));
-    float *fy = calloc(n, sizeof(float));
+
+    FILE *file = fopen(fileName, "r");
+    if (file == NULL) {
+        perror("Failed to open file");
+        return EXIT_FAILURE;
+    }
+
+    // Read the first line to get the value of n
+    if (fscanf(file, "%d", &n) != 1) {
+        fprintf(stderr, "Failed to read the value of n\n");
+        fclose(file);
+        return EXIT_FAILURE;
+    }
+
+    fclose(file);
 
     // for(int i = 0; i < n; ++i) 
     // {
     //     scanf("%f %f %f %f %f", &masses[i], &array_x[i], &array_y[i], &vs_x[i], &vs_y[i]);
     // }
-    generate_bodies(masses, array_x, array_y, vs_x, vs_y, n);
+    float *masses = malloc(n * sizeof(float));
+    float *array_x = malloc(n * sizeof(float));
+    float *array_y = malloc(n * sizeof(float));
+    float *vs_x = malloc(n * sizeof(float));
+    float *vs_y = malloc(n * sizeof(float));
+    float *fx = malloc(n * sizeof(float));
+    float *fy = malloc(n * sizeof(float));
+    parse_csv(fileName, n, masses, array_x, array_y, vs_x, vs_y);
 
     float current_time = 0.0;
     while(current_time < t_end) {
