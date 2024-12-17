@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <cuda.h>
 #include <math.h>
+#include "timer.h"
 #include <string.h>
 
 #define MAX_LINE_LENGTH 1024
@@ -169,6 +170,8 @@ int main(int argc, char* argv[])
     res = fopen("result.csv", "w+");
 
     float current_time = 0.0;
+
+    double total_execution_time = 0.0;
     while(current_time < t_end) {
         //printf("%f ", current_time);
         fprintf(res, "%f ", current_time);
@@ -178,12 +181,23 @@ int main(int argc, char* argv[])
         }
         //printf("\n");
         fprintf(res, "\n");
+        
+        double start_time;
+        GET_TIME(start_time);
+
         calculate_force<<<block_cnt, nthreads>>>(fx,  fy,  masses,  array_x,  array_y, vs_x, vs_y, n, delta_t, nthreads);
         cudaDeviceSynchronize();
+
+        double end_time;
+        GET_TIME(end_time);
+
+        total_execution_time += end_time - start_time;
+
         current_time += delta_t;
     }
     fclose(res);
     printf("Result saved in file 'result.csv'!\n");
+    printf("Time spent: %f\n", total_execution_time);
 
     cudaDeviceSynchronize();
 
