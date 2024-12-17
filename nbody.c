@@ -139,16 +139,28 @@ int main(int argc, char* argv[])
     parse_csv(fileName, n, masses, array_x, array_y, vs_x, vs_y);
 
     float current_time = 0.0;
+    FILE *res;
+    res = fopen("result.csv", "w+");
+
+    float res_arr[n][3];
+
     while(current_time < t_end) {
-        printf("%f ", current_time);
+        fprintf(res, "%f ", current_time);
         for(int i = 0; i < n; ++i) {
-            printf("%f %f ", array_x[i], array_y[i]);
+            res_arr[i][0] = current_time;
+            res_arr[i][1] = array_x[i];
+            res_arr[i][]
+            fprintf(res, "%f %f ", array_x[i], array_y[i]);
+            //printf("%f %f ", array_x[i], array_y[i]);
         }
-        printf("\n");
+        //printf("\n");
+        fprintf(res, "\n");
         calculate_force(masses, array_x, array_y, fx, fy, n);
         update_points(fx,  fy,  masses,  array_x,  array_y, vs_x, vs_y, n, delta_t);
         current_time += delta_t;
     }
+    fclose(res);
+    printf("Result saved in file 'result.csv'!\n");
 
     free(masses);
     free(array_x);

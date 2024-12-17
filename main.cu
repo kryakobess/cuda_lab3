@@ -127,8 +127,8 @@ int main(int argc, char* argv[])
     printf("nthreads: %d\n", nthreads);
 
     int n; // кол-во тел и потоков
-    float t_end = 100.0; // максимальный промежуток времени
-    float time_step_count = 100.0;
+    float t_end = 1.0; // максимальный промежуток времени
+    float time_step_count = 1000.0;
     float delta_t = t_end / time_step_count;
     int block_cnt = 1;
 
@@ -164,17 +164,26 @@ int main(int argc, char* argv[])
 
     parse_csv("input.csv", n, masses, array_x, array_y, vs_x, vs_y);
 
+
+    FILE *res;
+    res = fopen("result.csv", "w+");
+
     float current_time = 0.0;
     while(current_time < t_end) {
-        printf("%f ", current_time);
+        //printf("%f ", current_time);
+        fprintf(res, "%f ", current_time);
         for(int i = 0; i < n; ++i) {
-            printf("%f %f ", array_x[i], array_y[i]);
+            fprintf(res, "%f %f ", array_x[i], array_y[i]);
+            //printf("%f %f ", array_x[i], array_y[i]);
         }
-        printf("\n");
+        //printf("\n");
+        fprintf(res, "\n");
         calculate_force<<<block_cnt, nthreads>>>(fx,  fy,  masses,  array_x,  array_y, vs_x, vs_y, n, delta_t, nthreads);
         cudaDeviceSynchronize();
         current_time += delta_t;
     }
+    fclose(res);
+    printf("Result saved in file 'result.csv'!\n");
 
     cudaDeviceSynchronize();
 
