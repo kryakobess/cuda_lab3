@@ -7,12 +7,9 @@
 #define MAX_LINE_LENGTH 1024
 #define G 6.67E-11
 
-const int nthreads = 4;
-
 __device__ void update_points(float *fx, float* fy, float *masses, float *array_x, float *array_y,
- float *v_x, float *v_y, int n, float delta_t) 
+ float *v_x, float *v_y, int n, float delta_t, int i) 
 {
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
     //printf("update points idx: %d\n", i);
 
     array_x[i] += v_x[i] * delta_t;
@@ -22,33 +19,48 @@ __device__ void update_points(float *fx, float* fy, float *masses, float *array_
 }
 
 __global__ void calculate_force(float *fx, float* fy, float *masses, float *array_x, float *array_y,
- float *v_x, float *v_y, int n, float delta_t) 
+ float *v_x, float *v_y, int n, float delta_t, int nthreads) 
 {
     int my_idx = blockDim.x * blockIdx.x + threadIdx.x;
     fx[my_idx] = 0.0;
     fy[my_idx] = 0.0;
+    
+    int body_per_thread = n/nthreads; 
+    int n_mod_threads = n % nthreads; 
+    
+    int cur_bodies_count, start_body;
 
-    //printf("Calculate force. idx: %d\n", my_idx);
-    for (int i = 0; i < n; ++i) {
-        if (i == my_idx) continue;
-
-        float dx = array_x[i] - array_x[my_idx];
-        float dy = array_y[i] - array_y[my_idx];
-
-        //printf("idx: %d, i: %d, dx: %f, dy: %f, xi: %f, yi: %f\n", my_idx, i, dx, dy, array_x[i], array_y[i]);
-        
-        float squared_dist = dx*dx + dy*dy;
-        float dist = sqrtf(squared_dist);
-        float force = G * masses[my_idx] * masses[i] / (squared_dist * dist);
-        
-        //printf("idx: %d, i: %d, force: %f", my_idx, i, force);
-
-        fx[my_idx] += force * dx;
-        fy[my_idx] += force * dy;
-        //printf("idx: %d, i: %d, fx=%f, fy=%f\n", my_idx, i, fx[my_idx], fy[my_idx]);
+    if (my_idx + 1 <= n_mod_threads) {
+        cur_bodies_count = body_per_thread + 1;
+        start_body = cur_bodies_count * my_idx;
+    } else {
+        cur_bodies_count = body_per_thread;
+        start_body = cur_bodies_count * my_idx + n_mod_threads;
     }
 
-    update_points(fx, fy, masses, array_x, array_y, v_x, v_y, n, delta_t);
+    //printf("Calculate force. idx: %d\n", my_idx);
+    for (int q = start_body; q < start_body + cur_bodies_count; ++q) {
+        for (int i = 0; i < n; ++i) {
+            if (i == q) continue;
+
+            float dx = array_x[i] - array_x[q];
+            float dy = array_y[i] - array_y[q];
+
+            //printf("idx: %d, i: %d, dx: %f, dy: %f, xi: %f, yi: %f\n", my_idx, i, dx, dy, array_x[i], array_y[i]);
+            
+            float squared_dist = dx*dx + dy*dy;
+            float dist = sqrtf(squared_dist);
+            float force = G * masses[q] * masses[i] / (squared_dist * dist);
+            
+            //printf("idx: %d, i: %d, force: %f", my_idx, i, force);
+
+            fx[q] += force * dx;
+            fy[q] += force * dy;
+            //printf("idx: %d, i: %d, fx=%f, fy=%f\n", my_idx, i, fx[q], fy[q]);
+        }
+
+        update_points(fx, fy, masses, array_x, array_y, v_x, v_y, n, delta_t, q);
+    }
 }
 
 __host__ void freeMem(float *masses, float *array_x, float *array_y, float *vs_x, float *vs_y, float *fx, float *fy) {
@@ -111,7 +123,9 @@ void parse_csv(const char *filename, int n, float *m, float *x, float *y, float 
 int main(int argc, char* argv[]) 
 {
     printf("Start\n");
-    
+    int nthreads = atoi(argv[1]);
+    printf("nthreads: %d\n", nthreads);
+
     int n; // кол-во тел и потоков
     float t_end = 100.0; // максимальный промежуток времени
     float time_step_count = 100.0;
@@ -157,7 +171,7 @@ int main(int argc, char* argv[])
             printf("%f %f ", array_x[i], array_y[i]);
         }
         printf("\n");
-        calculate_force<<<block_cnt, n>>>(fx,  fy,  masses,  array_x,  array_y, vs_x, vs_y, n, delta_t);
+        calculate_force<<<block_cnt, nthreads>>>(fx,  fy,  masses,  array_x,  array_y, vs_x, vs_y, n, delta_t, nthreads);
         cudaDeviceSynchronize();
         current_time += delta_t;
     }
