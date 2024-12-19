@@ -8,21 +8,45 @@
 #define MAX_LINE_LENGTH 1024
 #define G 6.67E-11
 
-__device__ void update_points(float *fx, float* fy, float *masses, float *array_x, float *array_y,
- float *v_x, float *v_y, int n, float delta_t, int i) 
+__global__ void update_points(float *fx, float* fy, float *masses, float *array_x, float *array_y,
+ float *v_x, float *v_y, int n, float delta_t, int nthreads) 
 {
     //printf("update points idx: %d\n", i);
+    int my_idx = blockDim.x * blockIdx.x + threadIdx.x;
 
-    array_x[i] += v_x[i] * delta_t;
-    array_y[i] += v_y[i] * delta_t;
-    v_x[i] += (fx[i] / masses[i]) * delta_t;
-    v_y[i] += (fy[i] / masses[i]) * delta_t;
+    if (my_idx > n) {
+        return;
+    }
+    
+    int body_per_thread = n/nthreads; 
+    int n_mod_threads = n % nthreads; 
+    int cur_bodies_count, start_body;
+
+    if (my_idx + 1 <= n_mod_threads) {
+        cur_bodies_count = body_per_thread + 1;
+        start_body = cur_bodies_count * my_idx;
+    } else {
+        cur_bodies_count = body_per_thread;
+        start_body = cur_bodies_count * my_idx + n_mod_threads;
+    }
+
+    for (int i = start_body; i < start_body + cur_bodies_count; ++i) {
+        array_x[i] += v_x[i] * delta_t;
+        array_y[i] += v_y[i] * delta_t;
+        v_x[i] += (fx[i] / masses[i]) * delta_t;
+        v_y[i] += (fy[i] / masses[i]) * delta_t;
+    }
 }
 
 __global__ void calculate_force(float *fx, float* fy, float *masses, float *array_x, float *array_y,
  float *v_x, float *v_y, int n, float delta_t, int nthreads) 
 {
     int my_idx = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (my_idx > n) {
+        return;
+    }
+
     fx[my_idx] = 0.0;
     fy[my_idx] = 0.0;
     
@@ -59,8 +83,6 @@ __global__ void calculate_force(float *fx, float* fy, float *masses, float *arra
             fy[q] += force * dy;
             //printf("idx: %d, i: %d, fx=%f, fy=%f\n", my_idx, i, fx[q], fy[q]);
         }
-
-        update_points(fx, fy, masses, array_x, array_y, v_x, v_y, n, delta_t, q);
     }
 }
 
@@ -187,7 +209,8 @@ int main(int argc, char* argv[])
 
         calculate_force<<<block_cnt, nthreads>>>(fx,  fy,  masses,  array_x,  array_y, vs_x, vs_y, n, delta_t, nthreads);
         cudaDeviceSynchronize();
-
+        update_points<<<block_cnt, nthreads>>>(fx,  fy,  masses,  array_x,  array_y, vs_x, vs_y, n, delta_t, nthreads);
+        cudaDeviceSynchronize();
         double end_time;
         GET_TIME(end_time);
 
